@@ -5,12 +5,12 @@ async def run_auto_buy():
     # 설정 정보
     USER_ID = "9714" 
     USER_PW = "0000" 
-    STOCK_NAME = "서연탑메탈"  # 시공테크에서 서연탑메탈로 변경
+    STOCK_NAME = "서연탑메탈"
 
     async with async_playwright() as p:
-        # 화면 크기를 넉넉하게 설정하여 버튼이 가려지지 않게 함
+        # 화면 크기를 넉넉하게 설정
         browser = await p.chromium.launch(headless=True)
-        context = await browser.new_context(viewport={"width": 1920, "height": 1080})
+        context = await browser.new_context(viewport={"width": 1280, "height": 1024})
         page = await context.new_page()
         
         try:
@@ -23,41 +23,47 @@ async def run_auto_buy():
             await page.click('button[type="submit"]')
             
             # 로그인 후 메인화면 로딩 대기
-            await page.wait_for_timeout(10000) # 요청하신 10초 대기 추가
+            await page.wait_for_timeout(5000) 
             
             # 2. 종목 검색
             search_input = page.locator('input[placeholder*="검색"]').first
             await search_input.fill(STOCK_NAME)
-            await page.wait_for_timeout(3000) # 검색 결과 나타날 때까지 대기
+            await page.wait_for_timeout(2000)
             await page.click(f'text="{STOCK_NAME}"')
             
-            # 3. 매수 주문 시도
-            # 화면 로딩과 버튼 활성화를 위해 여기서도 10초를 기다립니다.
-            print("주문 버튼 대기 중 (10초)...")
-            await page.wait_for_timeout(10000) 
+            # 3. 매수 주문 시도 (수정된 로직)
+            print("주문 페이지 로딩 대기 중...")
+            await page.wait_for_timeout(5000) 
             
-            # "+" 버튼 클릭 시도
-            plus_button = page.locator('button:has-text("+")').last
-            await plus_button.click()
-            await page.wait_for_timeout(2000)
+            # [시장가] 버튼 클릭 - 가격 입력 생략
+            market_price_btn = page.locator('button:has-text("시장가")')
+            await market_price_btn.click()
+            print("- 시장가 선택 완료")
+            await page.wait_for_timeout(1000)
+
+            # [10%] 버튼 클릭 - 비중 설정
+            percent_10_btn = page.locator('button:has-text("10%")')
+            await percent_10_btn.click()
+            print("- 투자 비중 10% 설정 완료")
+            await page.wait_for_timeout(1000)
             
-            # "매수" 버튼 클릭
+            # 하단 [매수] 버튼 클릭
+            # '주문' 탭 안에 있는 빨간색 '매수' 버튼을 정확히 클릭합니다.
             buy_button = page.locator('button:has-text("매수")').last
             await buy_button.click()
+            print("- 매수 버튼 클릭 완료")
             await page.wait_for_timeout(2000)
             
-            # 4. 최종 확인 창 클릭
+            # 4. 최종 확인 창 클릭 (팝업이 뜨는 경우 처리)
             confirm = page.locator('button:has-text("확인"), button:has-text("승인")').first
             if await confirm.is_visible():
                 await confirm.click()
-                print(f"★ {STOCK_NAME} 주문 완료")
+                print(f"★ {STOCK_NAME} 최종 주문 완료")
             else:
-                print("확인 버튼이 보이지 않습니다. 이미 주문되었거나 화면 확인이 필요합니다.")
+                print("추가 확인 창 없음 - 주문 완료 확인")
                 
         except Exception as e:
             print(f"오류 발생: {e}")
-            # 에러 발생 시 현재 화면을 찍어두면 나중에 분석하기 좋습니다.
-            # await page.screenshot(path="error_screenshot.png")
             
         finally:
             await browser.close()
